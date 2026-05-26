@@ -1,0 +1,41 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.env/
+env/
+.venv/
+
+# VSCode
+.vscode/
+
+# PyTorch model weights
+*.pth
+*.pt
+
+# Dataset and downloaded data
+data/
+
+# Logs, caches and temporary files
+*.log
+*.sqlite3
+.pytest_cache/
+coverage/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Generated images (optional)
+gen*.png
+
+# Ignore compiled C extensions
+*.so
+
+# Ignore packaging
+dist/
+build/
+*.egg-info/
