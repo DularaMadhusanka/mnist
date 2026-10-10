@@ -49,17 +49,20 @@ def train(epochs=5, ema_decay=0.0):
             dropout_mask = torch.rand(current_batch_size, device=device) < cfg_dropout_rate
             labels[dropout_mask] = 10
 
-            # 3. Forward SDE (The Destroyer)
-            std = t.view(-1, 1, 1, 1)  # Reshape to [batch, 1, 1, 1] for image broadcasting
+            # VE SDE: f=0, g(t)=sqrt(2t), giving sigma_t=t and
+            # x_t = x_0 + sigma_t * epsilon.
+            sigma_t = t.view(-1, 1, 1, 1)
             noise = torch.randn_like(images)
-            noisy_images = images + std * noise
+            noisy_images = images + sigma_t * noise
 
             # 4. Predict the Score using our Noisy Image, Time, and (sometimes dropped) Label
             optimizer.zero_grad()
             predicted_score = model(noisy_images, t, labels)
 
-            # 5. Denoising Score Matching Loss
-            loss = torch.mean(torch.sum((std * predicted_score + noise) ** 2, dim=[1, 2, 3]))
+            # E[||sigma_t * s_theta(x_t, t) + epsilon||^2]
+            loss = torch.mean(
+                torch.sum((sigma_t * predicted_score + noise) ** 2, dim=[1, 2, 3])
+            )
 
             # 6. Backpropagation
             loss.backward()

@@ -8,7 +8,10 @@ from model import MNISTCFGBlock
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 
-def ddim_sample(model, label, device, steps=200, seed=None, eta=0.0, cfg_scale=1.0):
+def ddim_sample(
+    model, label, device, steps=200, seed=None, eta=0.0, cfg_scale=1.0,
+    step_callback=None,
+):
 
     if seed is not None:
         torch.manual_seed(seed)
@@ -39,6 +42,49 @@ def ddim_sample(model, label, device, steps=200, seed=None, eta=0.0, cfg_scale=1
 
         if eta and t_next > 0:
             x = x + eta * t_next * torch.randn_like(x)
+        if step_callback is not None:
+            step_callback(i, x)
+
+    return x
+
+
+def reverse_sde_sample(
+    model, label, device, steps=200, seed=None, cfg_scale=1.0,
+    step_callback=None,
+):
+    if steps < 1:
+        raise ValueError("steps must be at least 1")
+
+    generator = None
+    if seed is not None:
+        generator = torch.Generator(device=device).manual_seed(seed)
+
+    model.eval()
+    x = torch.randn((1, 1, 28, 28), device=device, generator=generator)
+    y = torch.tensor([label], device=device)
+    y_uncond = torch.tensor([10], device=device)
+    dt = 1.0 / steps
+
+    # For the forward VE SDE f=0, g(t)=sqrt(2t). Integrate
+    # dx=[-g(t)^2 score]dt+g(t)dW_bar with dt=-step_size.
+    for i in reversed(range(steps)):
+        t_value = (i + 1) / steps
+        t = torch.full((1,), t_value, device=device)
+        with torch.no_grad():
+            if cfg_scale != 1.0:
+                score_uncond = model(x, t, y_uncond)
+                score_cond = model(x, t, y)
+                score = score_uncond + cfg_scale * (score_cond - score_uncond)
+            else:
+                score = model(x, t, y)
+
+        g_squared = 2.0 * t_value
+        noise = torch.randn(
+            x.shape, device=device, dtype=x.dtype, generator=generator
+        )
+        x = x + g_squared * score * dt + (g_squared * dt) ** 0.5 * noise
+        if step_callback is not None:
+            step_callback(i, x)
 
     return x
 
@@ -118,7 +164,10 @@ if __name__ == '__main__':
     if args.sampler == 'ddim':
         img = ddim_sample(model, args.digit, device, steps=args.steps, seed=args.seed, eta=args.eta, cfg_scale=args.cfg_scale)
     else:
-        img = sample(model, args.digit, device, steps=args.steps, seed=args.seed, cfg_scale=args.cfg_scale)
+        img = reverse_sde_sample(
+            model, args.digit, device, steps=args.steps, seed=args.seed,
+            cfg_scale=args.cfg_scale,
+        )
     # model expects normalized images in [-1, 1]; convert to [0,1] for saving
     img = (img.clamp(-1, 1) + 1) / 2.0
     output_path = Path(args.out)
