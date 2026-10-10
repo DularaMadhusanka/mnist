@@ -1,28 +1,32 @@
+from pathlib import Path
+
 import torch
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 
-def get_mnist_dataloader(batch_size=128):
+PROJECT_ROOT = Path(__file__).resolve().parent
 
+
+def get_mnist_dataloader(batch_size=128):
     transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,)) 
+        transforms.Normalize((0.5,), (0.5,))
     ])
-    
+
     train_dataset = datasets.MNIST(
-        root='./data', 
-        train=True, 
-        download=True, 
-        transform=transform
+        root=str(PROJECT_ROOT / 'data'),
+        train=True,
+        download=True,
+        transform=transform,
     )
-    
+
     dataloader = DataLoader(
-        train_dataset, 
-        batch_size=batch_size, 
-        shuffle=True, 
-        drop_last=True
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        drop_last=True,
     )
-    
+
     return dataloader
 
 if __name__ == "__main__":
